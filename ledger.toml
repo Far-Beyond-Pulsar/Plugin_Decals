@@ -1,0 +1,95 @@
+# The decals plugin's rows of the SceneDB closure ledger (Pulsar-Native#1035):
+# its classes, GPU schemas, buffers, pass crates and call sites. A plugin owns
+# the rows of what it ships (Pulsar-Native#1606); `cargo test -p scene_inventory`
+# in a Pulsar-Native checkout recomputes every fact column, checks the human
+# columns, and fails on a missing, stale or misplaced row. The columns are
+# described in Pulsar-Native's crates/core/scene_inventory/ledger.toml.
+
+# ── Exposed component classes ───────────────────────────────────
+
+[[class]]
+name = "DecalComponent"
+category = "Rendering"
+world_registered = true
+own_gpu_columns = true
+owner = "decals_component::component"
+disposition = "render (#1058). Its derived DecalSourceRow is written on every insert, write, removal and replay (its image registered in the scene texture store); the environment join gates it on the instance and its owner's visibility and places it into decals with the owner's box as its transform. Permanent (fade time 0); scripts set its opacity (set_opacity, fade_by)"
+target_contract = "Phase 4; 09-component-structure-and-graph-boundary.md"
+test = "plugins/installed/tests/render_acceptance.rs (decals_reach_the_frame_and_scripts_set_their_opacity); plugins/vendor/decals/tests/scene_rows.rs (decals_are_placed_in_their_owners_box)"
+status = "verified"
+
+# ── GPU-bearing schemas ─────────────────────────────────────────
+
+[[schema]]
+type = "DecalSourceRow"
+path = "decals_component::DecalSourceRow"
+buffers = ["decal_sources"]
+clears_on_remove = true
+releases_var_len = false
+registered = true
+writer = "DecalComponent's derived GPU registration (the pass row in the owner's space with its box size; zero while disabled), on every insert, write, removal and replay"
+owner = "decals_component"
+disposition = "keep: the environment join's decals input"
+target_contract = "Phase 4; 09-component-structure-and-graph-boundary.md"
+test = "plugins/installed/tests/render_acceptance.rs (decals_reach_the_frame_and_scripts_set_their_opacity); plugins/vendor/decals/tests/scene_rows.rs (decals_are_placed_in_their_owners_box)"
+status = "verified"
+
+[[schema]]
+type = "DecalComponent"
+path = "decals_component::component::DecalComponent"
+buffers = []
+clears_on_remove = true
+releases_var_len = false
+registered = false
+writer = "helio-scene-derivations environment join from DecalComponent's source rows (#1058)"
+owner = "decals_component::component"
+disposition = "keep as the pass row layout of decals; produced by the join (the world-to-decal transform from the owner), not registered as a column"
+target_contract = "Phase 4; 03-gpu-reflection-and-rendering.md"
+test = "plugins/installed/tests/render_acceptance.rs (decals_reach_the_frame_and_scripts_set_their_opacity); plugins/vendor/decals/tests/scene_rows.rs (decals_are_placed_in_their_owners_box)"
+status = "verified"
+
+# ── GPU buffer keys ─────────────────────────────────────────────
+
+[[buffer]]
+key = "decals"
+producers = []
+consumers = ["helio-pass-decal"]
+owner = "helio-scene-derivations environment join (execution output, packed into MAX_DECALS rows)"
+disposition = "keep: the join places each enabled DecalComponent of a visible owner with a non-zero box and writes its world-to-decal transform from the owner's transform (#1058)"
+target_contract = "Phase 4; 09-component-structure-and-graph-boundary.md"
+test = "plugins/installed/tests/render_acceptance.rs (decals_reach_the_frame_and_scripts_set_their_opacity); plugins/vendor/decals/tests/scene_rows.rs (decals_are_placed_in_their_owners_box)"
+status = "verified"
+
+[[buffer]]
+key = "decal_sources"
+producers = ["DecalSourceRow"]
+consumers = []
+owner = "helio_component::components::environment_rows"
+disposition = "keep: DecalComponent in its owner's space, derived on every write; the environment join reads it into decals"
+target_contract = "Phase 4; 09-component-structure-and-graph-boundary.md"
+test = "plugins/installed/tests/render_acceptance.rs (decals_reach_the_frame_and_scripts_set_their_opacity); plugins/vendor/decals/tests/scene_rows.rs (decals_are_placed_in_their_owners_box)"
+status = "verified"
+
+# ── Render pass crates ──────────────────────────────────────────
+
+[[pass]]
+crate = "helio-pass-decal"
+in_default_graph = false
+reads = ["decals"]
+owner = "helio-presets (mapping); helio-pass-decal (algorithm)"
+disposition = "runs in the editor graph: authored DecalComponents reach it through the environment join (decals, #1058); authored decals are permanent (fade time 0) and scripts set their opacity"
+target_contract = "Phase 6; 03-gpu-reflection-and-rendering.md"
+test = "plugins/installed/tests/render_acceptance.rs (decals_reach_the_frame_and_scripts_set_their_opacity); plugins/vendor/decals/tests/scene_rows.rs (decals_are_placed_in_their_owners_box)"
+status = "verified"
+
+# ── Lifecycle call sites ────────────────────────────────────────
+
+[[site]]
+pattern = "asset-binding"
+file = "plugins/vendor/decals/component/src/lib.rs"
+count = 1
+owner = "plugins/vendor/decals/component/src/lib.rs"
+disposition = "keep: the kind's own, moved with it into its plugin (plugin-migration.md Phases B and C)"
+target_contract = "Phase C; plugin-migration.md"
+test = "none: no test names this row; the owning plugin's suites cover its behaviour"
+status = "unverified"
