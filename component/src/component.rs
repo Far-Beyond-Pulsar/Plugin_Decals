@@ -17,7 +17,7 @@
 //! `helio_pass_decal::DecalRow` row in `"decals"`, its world-to-decal
 //! transform built from the owner's transform on the GPU.
 
-use engine_class_derive::{engine_class, register_world_component};
+use engine_class_derive::{engine_class, world_component};
 use pulsar_reflection::Reflectable;
 use serde::{Deserialize, Serialize};
 
@@ -148,7 +148,7 @@ impl DecalComponent {
     }
 }
 
-#[register_world_component]
+#[world_component]
 impl DecalComponent {}
 
 /// The world counts the image `albedo_texture` names as a reference of the

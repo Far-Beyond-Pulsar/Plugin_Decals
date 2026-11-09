@@ -3,6 +3,9 @@
 //! decal, and saving writes the path, never the image. No GPU.
 
 use std::path::Path;
+
+// The plugin as a game links it: its root, with every registration.
+use decals_plugin as _;
 use std::time::Duration;
 
 use decals_component::DecalComponent;

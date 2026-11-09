@@ -8,18 +8,15 @@
 //!   the authored value, with the albedo image's texture store slot; the
 //!   plugin's join builds its world-to-decal transform from the owner
 //!   (`helio_pass_decal::scene_rows`).
-//! - The registrations of the plugin's Helio feature
-//!   (`helio_pass_decal::DecalFeature`, a G-buffer drawer), its scene rows
-//!   and how a decal takes in a loaded image, with the engine.
+//! - What the engine runs for them: the plugin's Helio feature
+//!   ([`render_features`]: `helio_pass_decal::DecalFeature`, a G-buffer
+//!   drawer), its scene rows ([`register_columns`], [`derivation`]) and how
+//!   a decal takes in a loaded image ([`register_texture_binding`]).
 //!
-//! Everything registers through `inventory` once the crate is linked: hosts link it
-//! without naming it (a game built for a project links the runtime modules
-//! of the plugins its `Pulsar.toml` enables, the editor every installed
-//! plugin through `installed_plugins`; `pulsar_plugins`) and know no decal type.
-
-// The plugin's descriptor (`../pulsar-plugin.toml`): linking this crate
-// installs the plugin; a project enables it or not (`pulsar_plugins`).
-pulsar_plugins::installed!("../pulsar-plugin.toml");
+//! This crate registers nothing itself but its types' SceneDB attachments
+//! (GPU mirror and clear, handle ledger, script methods): the plugin's root
+//! crate (`decals_plugin`) submits the component class and every
+//! registration above, in one place.
 
 pub mod component;
 
@@ -107,25 +104,22 @@ pulsar_scenedb::pulsar_reflection::inventory::submit! {
     }
 }
 
-fn register_texture_binding() {
+/// Registers how a decal takes in a loaded image (its albedo texture).
+pub fn register_texture_binding() {
     pulsar_scenedb::register_binding::<DecalComponent>(
         helio_component::texture_assets::TEXTURE_ASSET_KIND,
         bind_decal_texture,
     );
 }
 
-inventory::submit! {
-    helio_component::texture_assets::TextureBindingRegistration {
-        origin: pulsar_plugins::origin!(),
-        register: register_texture_binding,
-    }
-}
-
-fn register_columns(store: &mut SceneGpuStore, device: &std::sync::Arc<wgpu::Device>) {
+/// Registers the decals' source-row columns.
+pub fn register_columns(store: &mut SceneGpuStore, device: &std::sync::Arc<wgpu::Device>) {
     DecalSourceRow::register_gpu_columns_growable(store, 64, device);
 }
 
-fn derivation(
+/// The decals' scene rows: the plugin's join from source rows to the decal
+/// pass's rows, placed in their owners' boxes.
+pub fn derivation(
     device: &wgpu::Device,
     keys: helio_scene_join::RowJoinKeys,
 ) -> Box<dyn helio_scene_join::SceneDerivation> {
@@ -136,25 +130,9 @@ fn derivation(
     ))
 }
 
-inventory::submit! {
-    engine_backend::scene::helio_bridge::SceneRowsRegistration {
-        origin: pulsar_plugins::origin!(),
-        register_columns,
-        derivation,
-    }
-}
-
 /// The decals' feature: the decal drawer after the G-buffer's.
-fn render_features() -> helio_feature_api::FeatureSet {
+pub fn render_features() -> helio_feature_api::FeatureSet {
     helio_feature_api::FeatureSet::new().with(helio_pass_decal::DecalFeature)
-}
-
-inventory::submit! {
-    engine_backend::subsystems::render::RenderFeatureRegistration {
-        origin: pulsar_plugins::origin!(),
-        features: render_features,
-        configure: |config| config,
-    }
 }
 
 #[cfg(test)]
@@ -181,16 +159,5 @@ mod tests {
         decal.enabled = false;
         let row = DecalSourceRow::of(&decal, u32::MAX);
         assert!(bytemuck::bytes_of(&row).iter().all(|byte| *byte == 0));
-    }
-
-    #[test]
-    fn registers_its_feature() {
-        let features =
-            engine_backend::subsystems::render::helio_renderer::render_features::plugin_features();
-        assert!(
-            features.ids().contains(&"helio.decals"),
-            "features: {:?}",
-            features.ids()
-        );
     }
 }

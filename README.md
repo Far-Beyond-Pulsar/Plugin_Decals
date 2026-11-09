@@ -19,13 +19,22 @@ draw phases and api crates.
 
 | Crate | Path | What |
 |---|---|---|
-| `decals_component` | `component/` | Decals (pulsar.decals): the decal component, its rows and the registrations of the plugin's Helio feature |
-| `decals_plugin` | `editor/` | Decals (pulsar.decals): the editor plugin -- its metadata, over the plugin's component crate |
+| `decals_component` | `component/` | Decals (pulsar.decals): the decal component, its rows, image binding and scene rows, and the plugin's Helio feature set |
+| `decals_plugin` | `.` | Decals (`pulsar.decals`): the plugin's root crate, the one place it registers everything it contributes (runtime registrations always, the editor's with `editor`) |
 | `decals-examples` | `examples/` | The decals plugin's standalone hosts on Helio: the indoor cathedral with decals |
 | `helio-pass-decal` | `feature/` | Helio render pass: decal projection (bullet holes, cracks, stickers) |
 
-- **Runtime module** (what a game built for a project links): `decals_component`.
-- **Editor module** (what the editor links in addition): `decals_plugin`.
+The root crate (`decals_plugin`, this directory's package) is the one place
+the plugin registers what it contributes: its component classes, every
+registration that names an origin (`pulsar_plugins::origin!()`) and the
+descriptor. The other crates hold the code and register nothing but their
+types' own attachments, so `src/runtime.rs` lists everything the plugin
+brings (its editor registers nothing yet). The plugin's
+integration tests (`tests/`) link the root, as a game does.
+
+- **Runtime module** (what a game built for a project links): `decals_plugin`.
+- **Editor module** (what the editor links in addition): `decals_plugin` with its
+  `editor` feature (no editor UI yet).
 - **Requires**: nothing. A project enables or disables the plugin in its
   `Pulsar.toml` (`[plugins]`); disabled, the kind is absent and the frame
   draws without it.
@@ -43,8 +52,8 @@ only inside a Pulsar-Native checkout:
 ```bash
 git clone --recursive https://github.com/Far-Beyond-Pulsar/Pulsar-Native
 cd Pulsar-Native
-cargo check -p decals_component -p decals_plugin -p decals-examples -p helio-pass-decal --tests
-cargo test -p decals_component -p helio-pass-decal
+cargo check -p decals_plugin -p decals_component --features decals_plugin/editor -p decals-examples -p helio-pass-decal --tests
+cargo test -p decals_plugin -p decals_component -p helio-pass-decal
 ```
 
 Suites that render real frames need a GPU; CI leaves them out by name
