@@ -28,7 +28,7 @@ inventory::submit! {
         origin: pulsar_plugins::origin!(),
         name: "decals.rows",
         register_columns: decals_component::register_columns,
-        derivation: decals_component::derivation,
+        derivation: Some(decals_component::derivation),
     }
 }
 
