@@ -5,7 +5,8 @@
 //! the decal drawer after the G-buffer's and the join that places decals in
 //! their owners' boxes) and `decals_component` (the SceneDB component, its
 //! row, its image binding and its script method). Neither registers a
-//! contribution; this crate imports them and submits their registrations, so
+//! contribution; this crate imports them and registers them
+//! through its [`build`], so
 //! this file and the module below are the whole list of what the plugin
 //! brings:
 //!
@@ -15,7 +16,7 @@
 //!   edits a decal through its reflected properties.
 //!
 //! Every registration names this crate as its origin
-//! (`pulsar_plugins::origin!()`), so the plugin gate skips all of them while
+//! (`p.origin()`), so the plugin gate skips all of them while
 //! a project disables the plugin, and the plugin catalog lists them under
 //! `pulsar.decals`. Other plugins never depend on this crate; hosts reach it
 //! through the installed set or a generated game, a game without the
@@ -23,7 +24,12 @@
 
 // The plugin's descriptor (`pulsar-plugin.toml`): linking this crate installs
 // the plugin; a project enables it or not (`pulsar_plugins`).
-pulsar_plugins::installed!("pulsar-plugin.toml");
+pulsar_plugins::installed!("pulsar-plugin.toml", build);
+
+/// Everything the plugin registers.
+pub fn build(p: &mut pulsar_plugins::PluginBuilder) {
+    runtime::build(p);
+}
 
 pub use decals_component;
 
