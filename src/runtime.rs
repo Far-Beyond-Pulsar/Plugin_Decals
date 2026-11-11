@@ -2,45 +2,43 @@
 //! runtime contribution, grouped by the engine seam it plugs into.
 
 use decals_component::DecalComponent;
+use engine_backend::scene::{ClassSpec, ComponentsBuilder};
 use engine_backend::scene::helio_bridge::SceneRowsRegistration;
 use engine_backend::subsystems::render::RenderFeatureRegistration;
 use helio_component::texture_assets::TextureBindingRegistration;
 
-// ── Component classes ───────────────────────────────────────────────────────
+/// Everything the plugin registers for a game (and the editor).
+pub(crate) fn build(p: &mut pulsar_plugins::PluginBuilder) {
+    // ── Component classes ───────────────────────────────────────────────────
 
-pulsar_world_registry::submit_world_component!(DecalComponent);
+    p.components().class::<DecalComponent>(ClassSpec::default());
 
-// ── Rendering ───────────────────────────────────────────────────────────────
+    // ── Rendering ───────────────────────────────────────────────────────────
 
-// The decal drawer, after the G-buffer's.
-inventory::submit! {
-    RenderFeatureRegistration {
-        origin: pulsar_plugins::origin!(),
+    // The decal drawer, after the G-buffer's.
+    p.add(RenderFeatureRegistration {
+        origin: p.origin(),
         features: decals_component::render_features,
         configure: |config| config,
-    }
-}
+    });
 
-// The decals' source rows and the join that places them in their owners'
-// boxes as the decal pass's rows.
-inventory::submit! {
-    SceneRowsRegistration {
-        origin: pulsar_plugins::origin!(),
+    // The decals' source rows and the join that places them in their owners'
+    // boxes as the decal pass's rows.
+    p.add(SceneRowsRegistration {
+        origin: p.origin(),
         name: "decals.rows",
         register_columns: decals_component::register_columns,
         derivation: Some(decals_component::derivation),
-    }
-}
+    });
 
-// ── Assets ──────────────────────────────────────────────────────────────────
+    // ── Assets ──────────────────────────────────────────────────────────────
 
-// A decal takes in its loaded albedo image.
-inventory::submit! {
-    TextureBindingRegistration {
-        origin: pulsar_plugins::origin!(),
+    // A decal takes in its loaded albedo image.
+    p.add(TextureBindingRegistration {
+        origin: p.origin(),
         name: "decals.textures",
         register: decals_component::register_texture_binding,
-    }
+    });
 }
 
 #[cfg(test)]
