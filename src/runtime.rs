@@ -2,8 +2,8 @@
 //! runtime contribution, grouped by the engine seam it plugs into.
 
 use decals_component::DecalComponent;
-use engine_backend::scene::{ClassSpec, ComponentsBuilder};
 use engine_backend::scene::helio_bridge::SceneRowsRegistration;
+use engine_backend::scene::{ClassSpec, ComponentsBuilder};
 use engine_backend::subsystems::render::RenderFeatureRegistration;
 use helio_component::texture_assets::TextureBindingRegistration;
 
@@ -63,10 +63,9 @@ mod tests {
             .into_iter()
             .filter(|summary| summary.origin == pulsar_plugins::origin!())
             .collect();
-        assert!(
-            ours.iter()
-                .any(|summary| summary.category == "component.class")
-        );
+        assert!(ours
+            .iter()
+            .any(|summary| summary.category == "component.class"));
         for summary in &ours {
             assert_eq!(
                 pulsar_plugins::plugin_of(summary.origin).map(|plugin| plugin.id.as_str()),
