@@ -11,7 +11,7 @@ use std::sync::{Arc, Mutex};
 
 use engine_backend::subsystems::render::helio_renderer::{pipelines, render_features};
 use helio::{DebugDrawState, PassBuildContext, RendererConfig};
-use helio_graph_asset::{validate, GraphAsset, NodeInstance, NodeRegistry, PinKind};
+use helio_graph_asset::{GraphAsset, NodeInstance, NodeRegistry, PinKind, validate};
 use pulsar_scenedb::gpu::{EngineGpuContext, GpuMirrorHandle, SceneGpuConfig, SceneGpuStore};
 
 /// Every decal node: kind, the feature that registers it, the pass types its
@@ -56,7 +56,11 @@ fn buffer(device: &wgpu::Device, size: u64) -> wgpu::Buffer {
 
 fn configured() -> RendererConfig {
     // The renderer config with the plugins' settings, as a host makes it.
-    render_features::configure(RendererConfig::new(320, 180, wgpu::TextureFormat::Rgba8Unorm))
+    render_features::configure(RendererConfig::new(
+        320,
+        180,
+        wgpu::TextureFormat::Rgba8Unorm,
+    ))
 }
 
 fn registry() -> NodeRegistry {
@@ -66,7 +70,7 @@ fn registry() -> NodeRegistry {
 /// The default deferred graph with its sections expanded: every node in
 /// execution order.
 fn asset_of(registry: &NodeRegistry) -> GraphAsset {
-    let sectioned = helio_presets::graphs::deferred_graph_asset_for(registry, &configured());
+    let sectioned = helio_presets::graphs::deferred_graph_asset(registry);
     helio_graph_asset::sections::expand(&sectioned).asset
 }
 
@@ -116,10 +120,16 @@ fn every_pass_is_a_registered_node() {
             .get(kind)
             .unwrap_or_else(|| panic!("{kind} is not registered"));
         assert_eq!(registry.feature_of(kind), Some(*feature), "{kind}");
-        assert!(node.generated, "{kind}: pins come from what the pass declares");
+        assert!(
+            node.generated,
+            "{kind}: pins come from what the pass declares"
+        );
         assert!(node.params.iter().any(|p| p.key == "enabled"), "{kind}");
         assert!(node.placement.is_some(), "{kind}: the preset places it");
-        assert!(node.title.contains(": "), "{kind}: title reads `Group: Action`");
+        assert!(
+            node.title.contains(": "),
+            "{kind}: title reads `Group: Action`"
+        );
     }
 }
 
@@ -157,12 +167,19 @@ fn the_graph_builds_the_nodes_and_enabled_off_bypasses_them() {
     }
 
     // The Enabled parameter bypasses a node: no pass.
-    for node in asset.nodes.iter_mut().filter(|n| n.kind == "helio.pass.decal") {
+    for node in asset
+        .nodes
+        .iter_mut()
+        .filter(|n| n.kind == "helio.pass.decal")
+    {
         node.params.insert("enabled".into(), false.into());
     }
     let after = pass_types(&asset).expect("the same device");
     for pass in NODES[0].2 {
-        assert!(!after.iter().any(|t| t.contains(pass)), "{pass} is bypassed");
+        assert!(
+            !after.iter().any(|t| t.contains(pass)),
+            "{pass} is bypassed"
+        );
     }
 }
 
@@ -180,8 +197,14 @@ fn the_probe_gives_the_nodes_the_pins_their_passes_declare() {
             .get(kind)
             .unwrap_or_else(|| panic!("{kind} is not registered"))
             .pins(&Default::default());
-        assert!(pins.inputs.iter().any(|p| p.ty.kind == PinKind::Flow), "{kind}: {pins:?}");
-        assert!(pins.outputs.iter().any(|p| p.ty.kind == PinKind::Flow), "{kind}: {pins:?}");
+        assert!(
+            pins.inputs.iter().any(|p| p.ty.kind == PinKind::Flow),
+            "{kind}: {pins:?}"
+        );
+        assert!(
+            pins.outputs.iter().any(|p| p.ty.kind == PinKind::Flow),
+            "{kind}: {pins:?}"
+        );
         eprintln!("{kind} PINS {pins:?}");
     }
 }
@@ -208,7 +231,11 @@ fn a_disabled_plugin_has_no_nodes_and_a_graph_naming_one_says_so() {
 
     for (kind, ..) in NODES {
         assert!(registry.get(kind).is_none(), "{kind} is unregistered");
-        assert_eq!(registry.absence(kind), Some("plugin pulsar.decals disabled"), "{kind}");
+        assert_eq!(
+            registry.absence(kind),
+            Some("plugin pulsar.decals disabled"),
+            "{kind}"
+        );
     }
     let validation = validate(&asset, &registry);
     let messages: Vec<_> = validation.errors().map(|d| d.message.clone()).collect();
@@ -219,5 +246,9 @@ fn a_disabled_plugin_has_no_nodes_and_a_graph_naming_one_says_so() {
         "{messages:?}"
     );
     // Enabled again, the registry follows.
-    assert!(pipelines::graph_node_registry().get("helio.pass.decal").is_some());
+    assert!(
+        pipelines::graph_node_registry()
+            .get("helio.pass.decal")
+            .is_some()
+    );
 }
