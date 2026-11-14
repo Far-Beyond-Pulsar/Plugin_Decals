@@ -399,7 +399,9 @@ pub fn preset() -> helio_presets::PresetGraph {
             .with(helio_pass_decal::DecalFeature)
             // The lighting plugins' (Helio's presets list neither).
             .with(helio_pass_sky::SkyFeature)
-            .with(helio_pass_gi::GiFeature),
+            .with(helio_pass_gi::GiFeature)
+            // Baked lighting: adds its nodes once the cathedral is baked.
+            .extended(&helio_bake_host::features()),
     )
 }
 
