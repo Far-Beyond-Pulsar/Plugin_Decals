@@ -298,10 +298,6 @@ fn decal_collect_source(material_binding: helio_mats::MaterialBindingConfig) -> 
                 material_binding.max_textures
             ),
         )
-        .replace(
-            "binding_array<sampler, 256>",
-            &format!("binding_array<sampler, {}>", material_binding.max_textures),
-        )
     } else {
         helio_mats::apply_webgpu_decal_bindings(src, material_binding.max_textures)
     }
@@ -559,7 +555,7 @@ fn build_texture_bind_group(
         &mut entries,
         0,
         textures.texture_views,
-        textures.samplers,
+        textures.sampler,
     );
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("Decal Textures BG"),
