@@ -92,6 +92,7 @@ impl DecalPass {
         });
 
         // BGL collect: camera(0) + globals(1) + decals(2) + Hi-Z mip 0(3) + gbuf(4-7) + temp_out(8-11)
+        // + the G-buffer's surface tags (12: which view drew each pixel)
         let bgl_collect = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Decal Collect BGL"),
             entries: &[
@@ -123,6 +124,7 @@ impl DecalPass {
                     wgpu::StorageTextureAccess::WriteOnly,
                     wgpu::TextureFormat::Rgba16Float,
                 ),
+                bgl_entry_tex(12, wgpu::TextureSampleType::Float { filterable: false }),
             ],
         });
         let bgl_textures = create_decal_texture_bgl(device, material_binding);
@@ -384,6 +386,7 @@ impl RenderPass for DecalPass {
     }
     fn declare_resources(&self, builder: &mut ResourceBuilder) {
         builder.read(helio_frame_api::gbuffer::GROUP);
+        builder.read(helio_frame_api::gbuffer::SURFACE);
         builder.read(helio_frame_api::depth::HIZ);
         builder.read(helio_mats::MATERIAL_TEXTURES);
     }
@@ -435,6 +438,16 @@ impl RenderPass for DecalPass {
             Some(v) => v,
             None => return Ok(()),
         };
+        // Which view drew each pixel: a view's decals touch only its own
+        // (`gbuffer_in_view`), so the frame's decals never paint what a
+        // portal shows, and a portal's paint only its content.
+        let surface_view = match ctx.registry.read::<&wgpu::TextureView>(
+            helio_core::ResourceKey::new(helio_frame_api::gbuffer::SURFACE),
+            self.name(),
+        ) {
+            Some(v) => v,
+            None => return Ok(()),
+        };
         // The materials' texture table (a decal's textures are in it),
         // published every frame by the materials plugin; without it no
         // decal has a texture to draw.
@@ -475,6 +488,7 @@ impl RenderPass for DecalPass {
                     bind_tex(9, tn),
                     bind_tex(10, to),
                     bind_tex(11, te),
+                    bind_tex(12, surface_view),
                 ],
             },
         );
