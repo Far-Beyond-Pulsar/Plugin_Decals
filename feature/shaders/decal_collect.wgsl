@@ -33,6 +33,8 @@ struct DecalGlobals { decal_count: u32, _pad0: u32, _pad1: u32, _pad2: u32 }
 @group(0) @binding(9) var temp_normal: texture_storage_2d<rgba16float, write>;
 @group(0) @binding(10) var temp_orm: texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(11) var temp_emissive: texture_storage_2d<rgba16float, write>;
+// The G-buffer's surface tags: which view drew each pixel (`gbuffer_in_view`).
+@group(0) @binding(12) var gbuf_surface: texture_2d<f32>;
 // Scene-wide bindless texture table, shared with the GBuffer pass. Indexed by
 // GpuDecal::albedo_texture_index, which is a texture slot (TextureId::slot()).
 @group(1) @binding(0) var scene_sampler:  sampler;
@@ -100,8 +102,13 @@ fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
     let ee = textureLoad(gbuf_emissive, pxl, 0);
 
     var ra = ea; var rn = en; var ro = eo; var re = ee;
-
-    for (var i = 0u; i < globals.decal_count; i = i + 1u) {
+    // Another view's pixel (a portal's content seen from the frame, or the
+    // frame seen from a portal's view) keeps what it holds. The G-buffer's
+    // normals are in the space it was drawn into; this view's decals work in
+    // its content's space (`world_pos` is, through this view's camera).
+    let in_view = gbuffer_in_view(textureLoad(gbuf_surface, pxl, 0).rg, cameras[0]);
+    let content_normal = helio_view_normal_in_content(cameras[0], en.xyz);
+    for (var i = 0u; i < globals.decal_count && in_view; i = i + 1u) {
         let d = decals[i];
         let da = fade_opacity(d.age, d.fade_start_delay, d.fade_time);
         if da <= 0.0 { continue; }
@@ -124,7 +131,7 @@ fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
         let opa = tint.a * da * decal_albedo.a;
         if opa <= 0.0 { continue; }
 
-        let wn = normalize(en.xyz);
+        let wn = content_normal;
         let dc = vec4<f32>(decal_albedo.rgb * tint.rgb, opa);
 
         // Only a decal that carries a normal map may perturb the shading normal.
@@ -147,10 +154,12 @@ fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
             if d.blend_mode == BT || d.blend_mode == BA { ra = blend_over(ra, dc); }
             else if d.blend_mode == BADD { ra = blend_add(ra, dc); }
             else if d.blend_mode == BMUL { ra = blend_mul(ra, dc); }
-            if has_normal_map { rn = vec4<f32>(blend_nrm(wn, fnrm, opa), en.a); }
+            if has_normal_map {
+                rn = vec4<f32>(helio_view_normal(cameras[0], blend_nrm(wn, fnrm, opa)), en.a);
+            }
         }
         if d.decal_type == DT_NO && has_normal_map {
-            rn = vec4<f32>(blend_nrm(wn, fnrm, opa), en.a);
+            rn = vec4<f32>(helio_view_normal(cameras[0], blend_nrm(wn, fnrm, opa)), en.a);
         }
         if d.decal_type == DT_EM || d.decal_type == DT_AL {
             // Weighted by the decal's own opacity: the surface's emissive
