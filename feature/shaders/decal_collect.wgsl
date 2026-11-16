@@ -33,8 +33,12 @@ struct DecalGlobals { decal_count: u32, _pad0: u32, _pad1: u32, _pad2: u32 }
 @group(0) @binding(9) var temp_normal: texture_storage_2d<rgba16float, write>;
 @group(0) @binding(10) var temp_orm: texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(11) var temp_emissive: texture_storage_2d<rgba16float, write>;
-// The G-buffer's surface tags: which view drew each pixel (`gbuffer_in_view`).
+// The G-buffer's surface tags: a pixel drawn through a remap (a portal
+// chain's content) says which (`gbuffer_remap_of`).
 @group(0) @binding(12) var gbuf_surface: texture_2d<f32>;
+// `helio_frame_api::lighting::VIEW_REMAPS`: per remap, the drawn space to the
+// content's own world. A uniform: the compute stage binds enough storage.
+@group(0) @binding(13) var<uniform> view_remaps: array<mat4x4<f32>, 1024>;
 // Scene-wide bindless texture table, shared with the GBuffer pass. Indexed by
 // GpuDecal::albedo_texture_index, which is a texture slot (TextureId::slot()).
 @group(1) @binding(0) var scene_sampler:  sampler;
@@ -102,18 +106,26 @@ fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
     let ee = textureLoad(gbuf_emissive, pxl, 0);
 
     var ra = ea; var rn = en; var ro = eo; var re = ee;
-    // Another view's pixel (a portal's content seen from the frame, or the
-    // frame seen from a portal's view) keeps what it holds. The G-buffer's
-    // normals are in the space it was drawn into; this view's decals work in
-    // its content's space (`world_pos` is, through this view's camera).
-    let in_view = gbuffer_in_view(textureLoad(gbuf_surface, pxl, 0).rg, cameras[0]);
-    let content_normal = helio_view_normal_in_content(cameras[0], en.xyz);
-    for (var i = 0u; i < globals.decal_count && in_view; i = i + 1u) {
+    // Decals land in the world a pixel shows: a pixel drawn through a remap
+    // (what a portal chain shows) is taken back to its content's world, its
+    // position and normal both, so the decals there paint it and the decals
+    // here do not. The G-buffer keeps its normal in the drawn space.
+    let remap = gbuffer_remap_of(textureLoad(gbuf_surface, pxl, 0).rg);
+    var to_content = mat4x4<f32>(
+        vec4<f32>(1.0, 0.0, 0.0, 0.0), vec4<f32>(0.0, 1.0, 0.0, 0.0),
+        vec4<f32>(0.0, 0.0, 1.0, 0.0), vec4<f32>(0.0, 0.0, 0.0, 1.0));
+    if remap >= 0 {
+        to_content = view_remaps[remap];
+    }
+    let content_rotation = mat3x3<f32>(to_content[0].xyz, to_content[1].xyz, to_content[2].xyz);
+    let content_pos = (to_content * vec4<f32>(world_pos, 1.0)).xyz;
+    let content_normal = normalize(content_rotation * en.xyz);
+    for (var i = 0u; i < globals.decal_count; i = i + 1u) {
         let d = decals[i];
         let da = fade_opacity(d.age, d.fade_start_delay, d.fade_time);
         if da <= 0.0 { continue; }
 
-        let dl = d.transform * vec4<f32>(world_pos, 1.0);
+        let dl = d.transform * vec4<f32>(content_pos, 1.0);
         if abs(dl.x) > 1.0 || abs(dl.y) > 1.0 || dl.z < -1.0 || dl.z > 1.0 { continue; }
 
         let duv = vec2<f32>(dl.x*0.5+0.5, 0.5-dl.y*0.5);
@@ -155,11 +167,11 @@ fn cs_main(@builtin(global_invocation_id) id: vec3<u32>) {
             else if d.blend_mode == BADD { ra = blend_add(ra, dc); }
             else if d.blend_mode == BMUL { ra = blend_mul(ra, dc); }
             if has_normal_map {
-                rn = vec4<f32>(helio_view_normal(cameras[0], blend_nrm(wn, fnrm, opa)), en.a);
+                rn = vec4<f32>(transpose(content_rotation) * blend_nrm(wn, fnrm, opa), en.a);
             }
         }
         if d.decal_type == DT_NO && has_normal_map {
-            rn = vec4<f32>(helio_view_normal(cameras[0], blend_nrm(wn, fnrm, opa)), en.a);
+            rn = vec4<f32>(transpose(content_rotation) * blend_nrm(wn, fnrm, opa), en.a);
         }
         if d.decal_type == DT_EM || d.decal_type == DT_AL {
             // Weighted by the decal's own opacity: the surface's emissive
