@@ -57,6 +57,8 @@ pub struct DecalPass {
     /// inserted -- SceneDB is the only decal source this pass reads.
     /// `decal_count` is 0 whenever this is bound, so it's never dereferenced.
     fallback_decals: wgpu::Buffer,
+    /// Bound for the remaps while nothing publishes them.
+    no_remaps: wgpu::Buffer,
 }
 
 impl DecalPass {
@@ -92,7 +94,8 @@ impl DecalPass {
         });
 
         // BGL collect: camera(0) + globals(1) + decals(2) + Hi-Z mip 0(3) + gbuf(4-7) + temp_out(8-11)
-        // + the G-buffer's surface tags (12: which view drew each pixel)
+        // + the G-buffer's surface tags (12) + the frame's remaps (13: a
+        // remapped pixel's content world)
         let bgl_collect = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("Decal Collect BGL"),
             entries: &[
@@ -125,7 +128,16 @@ impl DecalPass {
                     wgpu::TextureFormat::Rgba16Float,
                 ),
                 bgl_entry_tex(12, wgpu::TextureSampleType::Float { filterable: false }),
+                bgl_entry_buf(13, wgpu::BufferBindingType::Uniform),
             ],
+        });
+        // Bound while nothing publishes remaps; never read then (no pixel is
+        // tagged with one).
+        let no_remaps = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("Decal No Remaps"),
+            size: helio_frame_api::lighting::VIEW_REMAPS_BYTES,
+            usage: wgpu::BufferUsages::UNIFORM,
+            mapped_at_creation: false,
         });
         let bgl_textures = create_decal_texture_bgl(device, material_binding);
         let collect_pl = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -215,6 +227,7 @@ impl DecalPass {
             last_h: 0,
             decal_count: 0,
             fallback_decals,
+            no_remaps,
         }
     }
 
@@ -438,9 +451,6 @@ impl RenderPass for DecalPass {
             Some(v) => v,
             None => return Ok(()),
         };
-        // Which view drew each pixel: a view's decals touch only its own
-        // (`gbuffer_in_view`), so the frame's decals never paint what a
-        // portal shows, and a portal's paint only its content.
         let surface_view = match ctx.registry.read::<&wgpu::TextureView>(
             helio_core::ResourceKey::new(helio_frame_api::gbuffer::SURFACE),
             self.name(),
@@ -459,6 +469,14 @@ impl RenderPass for DecalPass {
             None => return Ok(()),
         };
         self.ensure_temp(ctx.width, ctx.height, ctx.device);
+        // Which pixels were drawn through a remap (a portal chain's content),
+        // and the remaps: decals paint each pixel in the world it shows.
+        let remaps = ctx
+            .registry
+            .get::<&wgpu::Buffer>(helio_core::ResourceKey::new(
+                helio_frame_api::lighting::VIEW_REMAPS,
+            ))
+            .unwrap_or(&self.no_remaps);
         let decals_buf = ctx
             .scene_buffers
             .get(BufferKey::of("decals"))
@@ -489,6 +507,7 @@ impl RenderPass for DecalPass {
                     bind_tex(10, to),
                     bind_tex(11, te),
                     bind_tex(12, surface_view),
+                    bind_buf(13, remaps),
                 ],
             },
         );
