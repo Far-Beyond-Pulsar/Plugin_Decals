@@ -51,6 +51,4 @@ mod tests {
     }
 }
 #[cfg(test)]
-mod lifecycle_tests {
-    use super::DecalRow;
-}
+mod lifecycle_tests {}
