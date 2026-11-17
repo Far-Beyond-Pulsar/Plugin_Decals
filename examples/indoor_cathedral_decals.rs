@@ -11,10 +11,7 @@ use common::{
     scene_db_handle, spawn_decal, spawn_indoor_cathedral_sky, spawn_light, spawn_material,
     spawn_mesh, spawn_object, update_light,
 };
-use helio::{
-    required_experimental_features, required_wgpu_features, required_wgpu_limits, Camera,
-    HelioAction, HelioCommandBridge, Renderer, RendererBuilder, RendererConfig,
-};
+use helio::{Camera, HelioAction, HelioCommandBridge, Renderer, RendererBuilder, RendererConfig};
 use helio_bake::BakeConfig;
 use helio_pass_decal::{DecalBlendMode, DecalType, GpuDecal};
 use helio_pass_perf_overlay::PerfOverlayMode;
@@ -215,7 +212,6 @@ impl ApplicationHandler for App {
         let device = graphics.device.clone();
         let queue = graphics.queue.clone();
         let format = graphics.surface_config.format;
-        let surface_format = format;
 
         let config = RendererConfig::new(size.width, size.height, format).with_feature(
             helio_light_api::ShadowSettings {
