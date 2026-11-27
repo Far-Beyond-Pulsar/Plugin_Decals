@@ -77,7 +77,7 @@ pub struct DecalComponent {
     /// Image to project (project-relative path); its alpha is the decal's
     /// shape. Empty: the tint alone, over the whole box.
     #[property(category = "Decal")]
-    pub albedo_texture: String,
+    pub albedo_texture: helio_component::asset_paths::TexturePath,
     #[property(category = "Decal")]
     pub blend: DecalBlend,
     #[property(category = "Decal")]
@@ -95,7 +95,7 @@ impl Default for DecalComponent {
             size: [1.0, 1.0, 1.0],
             color: [1.0, 1.0, 1.0],
             opacity: 1.0,
-            albedo_texture: String::new(),
+            albedo_texture: Default::default(),
             blend: DecalBlend::AlphaBlend,
             layers: DecalLayers::Albedo,
             albedo_image: Default::default(),
