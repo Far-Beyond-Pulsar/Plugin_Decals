@@ -75,6 +75,7 @@ fn decal_dispatch(mirror: &GpuMirrorHandle, row: u32, data: *const (), is_new_in
     let albedo_slot = helio_component::texture_assets::texture_slot(
         &decal.albedo_image,
         &decal.albedo_texture,
+        decal.texture_options(),
         mirror,
         "decal",
     );

@@ -78,6 +78,14 @@ pub struct DecalComponent {
     /// shape. Empty: the tint alone, over the whole box.
     #[property(category = "Decal")]
     pub albedo_texture: helio_component::asset_paths::TexturePath,
+    /// Hold the image compressed in video memory (see
+    /// `helio_component::texture_options`).
+    #[property(category = "Decal")]
+    pub texture_compressed: bool,
+    /// The largest side, in texels, the GPU holds the image at; 0 for no
+    /// limit of this component's own.
+    #[property(min = 0, max = 16384, category = "Decal")]
+    pub texture_max_size: i32,
     #[property(category = "Decal")]
     pub blend: DecalBlend,
     #[property(category = "Decal")]
@@ -88,9 +96,46 @@ pub struct DecalComponent {
     pub albedo_image: helio_component::texture_assets::BoundTexture,
 }
 
+/// The project settings new components of this kind take their texture
+/// choice from.
+pub const TEXTURE_SETTINGS_OWNER: &str = "decal_textures";
+
+/// Registers [`TEXTURE_SETTINGS_OWNER`] (the plugin root submits it).
+pub fn register_texture_settings(cfg: &'static engine_state::settings::ConfigManager) {
+    helio_component::texture_options::register_settings(
+        cfg,
+        TEXTURE_SETTINGS_OWNER,
+        "Decal Textures",
+        "decals",
+    );
+}
+
+/// Gives a new component the project's texture choice (the plugin root
+/// submits it as a `NewComponentRegistration`).
+pub fn seed_new(value: &mut dyn std::any::Any) {
+    if let Some(component) = value.downcast_mut::<DecalComponent>() {
+        let options =
+            helio_component::texture_options::TextureOptions::from_project(TEXTURE_SETTINGS_OWNER);
+        component.texture_compressed = options.compressed;
+        component.texture_max_size = options.max_size as i32;
+    }
+}
+
+impl DecalComponent {
+    /// How this component wants its images held.
+    pub fn texture_options(&self) -> helio_component::texture_options::TextureOptions {
+        helio_component::texture_options::TextureOptions::new(
+            self.texture_compressed,
+            self.texture_max_size,
+        )
+    }
+}
+
 impl Default for DecalComponent {
     fn default() -> Self {
         Self {
+            texture_compressed: true,
+            texture_max_size: 0,
             enabled: true,
             size: [1.0, 1.0, 1.0],
             color: [1.0, 1.0, 1.0],

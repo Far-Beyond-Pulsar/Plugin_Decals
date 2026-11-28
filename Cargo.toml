@@ -26,6 +26,7 @@ decals_component = { workspace = true }
 # The engine seams the plugin registers into.
 engine_backend = { path = "../../../crates/core/engine_backend", default-features = false, features = ["render"] }
 helio_component = { workspace = true }
+pulsar_settings = { workspace = true }
 pulsar_world_registry = { workspace = true }
 
 [dev-dependencies]

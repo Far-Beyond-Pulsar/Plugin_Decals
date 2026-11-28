@@ -13,6 +13,18 @@ pub(crate) fn build(p: &mut pulsar_plugins::PluginBuilder) {
 
     p.components().class::<DecalComponent>(ClassSpec::default());
 
+    // What a new component's texture choice starts as: the project's.
+    p.add(pulsar_settings::project::ProjectSettingsRegistration {
+        origin: p.origin(),
+        name: "decals.textures_settings",
+        register: decals_component::register_texture_settings,
+    });
+    p.add(helio_component::asset_component::NewComponentRegistration {
+        origin: p.origin(),
+        class_name: decals_component::DECAL_CLASS_NAME,
+        seed: decals_component::seed_new,
+    });
+
     // ── Rendering ───────────────────────────────────────────────────────────
 
     // The decal drawer, after the G-buffer's.
@@ -63,10 +75,9 @@ mod tests {
             .into_iter()
             .filter(|summary| summary.origin == pulsar_plugins::origin!())
             .collect();
-        assert!(
-            ours.iter()
-                .any(|summary| summary.category == "component.class")
-        );
+        assert!(ours
+            .iter()
+            .any(|summary| summary.category == "component.class"));
         for summary in &ours {
             assert_eq!(
                 pulsar_plugins::plugin_of(summary.origin).map(|plugin| plugin.id.as_str()),
